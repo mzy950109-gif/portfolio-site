@@ -1,0 +1,29 @@
+{
+  "name": "portfolio-site",
+  "version": "1.0.0",
+  "description": "Design Portfolio Website",
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.105.3",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.5.0",
+    "dotenv": "^17.4.2",
+    "lucide-react": "^1.14.0",
+    "next": "^14.2.35",
+    "next-pwa": "^5.6.0",
+    "postcss": "^8.5.13",
+    "prisma": "^5.22.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^6.0.3"
+  }
+}
