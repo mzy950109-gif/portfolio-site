@@ -25,7 +25,7 @@ model Work {
   imageUrl    String
   thumbnailUrl String?
   categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category    Category @relation(fields: [categoryId], references: [id])
   tags        String?
   featured    Boolean  @default(false)
   sortOrder   Int      @default(0)
