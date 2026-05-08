@@ -104,13 +104,22 @@ export default function AdminPage() {
   const [newCatName, setNewCatName] = useState('')
   const handleAddCategory = async () => {
     if (!newCatName.trim()) return
-    await fetch('/api/categories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newCatName.trim() })
-    })
-    setNewCatName('')
-    loadData()
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newCatName.trim() })
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(`添加失败: ${data.error || res.status}`)
+        return
+      }
+      setNewCatName('')
+      loadData()
+    } catch (err) {
+      alert('网络错误，请稍后重试')
+    }
   }
 
   const handleDeleteCategory = async (id: string) => {
