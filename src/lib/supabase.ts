@@ -7,11 +7,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // 服务端专用 client（带更高权限）
 export const createServerClient = () => {
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
-      },
-    },
-  })
+  const serviceKey = process.env.SUPABASE_SERVICE_KEY!
+  return createClient(supabaseUrl, serviceKey)
 }
