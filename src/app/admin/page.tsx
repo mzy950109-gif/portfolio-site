@@ -203,6 +203,32 @@ export default function AdminPage() {
     loadData()
   }
 
+  // 分类重命名
+  const [editingCatId, setEditingCatId] = useState<string | null>(null)
+  const [editingCatName, setEditingCatName] = useState('')
+
+  const startEditCat = (cat: Category) => {
+    setEditingCatId(cat.id)
+    setEditingCatName(cat.name)
+  }
+
+  const saveEditCat = async () => {
+    if (!editingCatId || !editingCatName.trim()) return
+    await fetch('/api/categories', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editingCatId, name: editingCatName.trim() })
+    })
+    setEditingCatId(null)
+    setEditingCatName('')
+    loadData()
+  }
+
+  const cancelEditCat = () => {
+    setEditingCatId(null)
+    setEditingCatName('')
+  }
+
   // 设置
   const [siteTitle, setSiteTitle] = useState('')
   const [siteName, setSiteName] = useState('')
@@ -421,17 +447,43 @@ export default function AdminPage() {
 
           <div className="space-y-2">
             {categories.map(cat => (
-              <div key={cat.id} className="flex items-center justify-between bg-gray-50 p-4 rounded-xl">
-                <div>
-                  <h3 className="font-medium text-sm">{cat.name}</h3>
-                  <p className="text-xs text-gray-400">{cat.works?.length || 0} 个作品</p>
-                </div>
-                <button
-                  onClick={() => handleDeleteCategory(cat.id)}
-                  className="text-xs text-red-500 px-3 py-1.5 rounded-full hover:bg-red-50 transition"
-                >
-                  删除
-                </button>
+              <div key={cat.id} className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl">
+                {editingCatId === cat.id ? (
+                  <>
+                    <input
+                      value={editingCatName}
+                      onChange={e => setEditingCatName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') saveEditCat()
+                        if (e.key === 'Escape') cancelEditCat()
+                      }}
+                      autoFocus
+                      className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-gray-900"
+                    />
+                    <button onClick={saveEditCat} className="text-xs text-green-600 px-2 py-1.5 rounded-full hover:bg-green-50 transition">保存</button>
+                    <button onClick={cancelEditCat} className="text-xs text-gray-400 px-2 py-1.5 rounded-full hover:bg-gray-100 transition">取消</button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex-1 min-w-0">
+                      <h3
+                        className="font-medium text-sm truncate cursor-pointer hover:text-gray-600"
+                        onClick={() => startEditCat(cat)}
+                      >{cat.name}</h3>
+                      <p className="text-xs text-gray-400">{cat.works?.length || 0} 个作品</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => startEditCat(cat)}
+                        className="text-xs text-gray-400 px-2 py-1.5 rounded-full hover:bg-gray-100 transition"
+                      >重命名</button>
+                      <button
+                        onClick={() => handleDeleteCategory(cat.id)}
+                        className="text-xs text-red-500 px-2 py-1.5 rounded-full hover:bg-red-50 transition"
+                      >删除</button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>

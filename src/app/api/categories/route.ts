@@ -40,6 +40,23 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { id, name } = body
+    if (!id || !name) return NextResponse.json({ error: 'ID and name required' }, { status: 400 })
+    const slug = generateSlug(name)
+    const category = await prisma.category.update({
+      where: { id },
+      data: { name, slug }
+    })
+    return NextResponse.json(category)
+  } catch (error: any) {
+    console.error('PATCH /api/categories error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
