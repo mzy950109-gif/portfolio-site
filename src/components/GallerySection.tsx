@@ -503,6 +503,7 @@ export default function GallerySection() {
               <img
                 src={filteredWorks[(lightboxIndex - 1 + filteredWorks.length) % filteredWorks.length].imageUrl}
                 alt=""
+                alt=""
                 className="w-full h-full object-contain"
               />
             </div>
@@ -607,7 +608,7 @@ function WorkCard({ work, onClick }: { work: Work; onClick: () => void }) {
       onClick={onClick}
     >
       <img
-        src={work.imageUrl}
+        src={work.thumbnailUrl || work.imageUrl}
         alt={work.title || ''}
         className="w-full h-auto object-contain"
         loading="lazy"

@@ -110,7 +110,7 @@ export default function AdminPage() {
     }
 
     setUploading(true)
-    const items: { imageUrl: string; categoryId: string; title?: string }[] = []
+    const items: { imageUrl: string; thumbnailUrl: string; categoryId: string; title?: string }[] = []
 
     for (const file of files) {
       const formData = new FormData()
@@ -121,6 +121,7 @@ export default function AdminPage() {
         if (data.url) {
           items.push({
             imageUrl: data.url,
+            thumbnailUrl: data.thumbnailUrl || data.url,
             categoryId: defaultCategoryId,
             title: file.name.replace(/\.[^/.]+$/, '').slice(0, 50)
           })
@@ -206,6 +207,8 @@ export default function AdminPage() {
   // 分类重命名
   const [editingCatId, setEditingCatId] = useState<string | null>(null)
   const [editingCatName, setEditingCatName] = useState('')
+  const [draggedCatId, setDraggedCatId] = useState<string | null>(null)
+  const [dragOverCatId, setDragOverCatId] = useState<string | null>(null)
 
   const startEditCat = (cat: Category) => {
     setEditingCatId(cat.id)
@@ -227,6 +230,65 @@ export default function AdminPage() {
   const cancelEditCat = () => {
     setEditingCatId(null)
     setEditingCatName('')
+  }
+
+  // 分类拖拽排序
+  const handleCatDragStart = (catId: string) => {
+    setDraggedCatId(catId)
+  }
+
+  const handleCatDragOver = (e: React.DragEvent, catId: string) => {
+    e.preventDefault()
+    if (catId !== draggedCatId) {
+      setDragOverCatId(catId)
+    }
+  }
+
+  const handleCatDragLeave = () => {
+    setDragOverCatId(null)
+  }
+
+  const handleCatDrop = async (e: React.DragEvent, targetCatId: string) => {
+    e.preventDefault()
+    setDragOverCatId(null)
+    
+    if (!draggedCatId || draggedCatId === targetCatId) {
+      setDraggedCatId(null)
+      return
+    }
+
+    // 重新排序
+    const draggedIndex = categories.findIndex(c => c.id === draggedCatId)
+    const targetIndex = categories.findIndex(c => c.id === targetCatId)
+    
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedCatId(null)
+      return
+    }
+
+    const newCategories = [...categories]
+    const [draggedItem] = newCategories.splice(draggedIndex, 1)
+    newCategories.splice(targetIndex, 0, draggedItem)
+
+    // 更新本地状态
+    setCategories(newCategories)
+    setDraggedCatId(null)
+
+    // 保存到服务器
+    const updates = newCategories.map((cat, index) => ({
+      id: cat.id,
+      sortOrder: index,
+    }))
+
+    try {
+      await fetch('/api/categories/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      })
+    } catch (err) {
+      console.error('Failed to save category order:', err)
+    }
   }
 
   // 设置
@@ -413,7 +475,7 @@ export default function AdminPage() {
                 </button>
 
                 <img
-                  src={work.imageUrl}
+                  src={work.thumbnailUrl || work.imageUrl}
                   alt={work.title || ''}
                   className="w-full h-auto object-contain"
                   loading="lazy"
@@ -447,7 +509,17 @@ export default function AdminPage() {
 
           <div className="space-y-2">
             {categories.map(cat => (
-              <div key={cat.id} className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl">
+              <div
+                key={cat.id}
+                draggable
+                onDragStart={() => handleCatDragStart(cat.id)}
+                onDragOver={(e) => handleCatDragOver(e, cat.id)}
+                onDragLeave={handleCatDragLeave}
+                onDrop={(e) => handleCatDrop(e, cat.id)}
+                className={`flex items-center gap-3 bg-gray-50 p-4 rounded-xl cursor-move transition ${
+                  draggedCatId === cat.id ? 'opacity-50' : ''
+                } ${dragOverCatId === cat.id ? 'border-2 border-dashed border-gray-400' : ''}`}
+              >
                 {editingCatId === cat.id ? (
                   <>
                     <input
@@ -465,6 +537,17 @@ export default function AdminPage() {
                   </>
                 ) : (
                   <>
+                    {/* 拖拽手柄 */}
+                    <div className="text-gray-300 cursor-grab active:cursor-grabbing">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="9" cy="6" r="1.5" fill="currentColor"/>
+                        <circle cx="9" cy="12" r="1.5" fill="currentColor"/>
+                        <circle cx="9" cy="18" r="1.5" fill="currentColor"/>
+                        <circle cx="15" cy="6" r="1.5" fill="currentColor"/>
+                        <circle cx="15" cy="12" r="1.5" fill="currentColor"/>
+                        <circle cx="15" cy="18" r="1.5" fill="currentColor"/>
+                      </svg>
+                    </div>
                     <div className="flex-1 min-w-0">
                       <h3
                         className="font-medium text-sm truncate cursor-pointer hover:text-gray-600"

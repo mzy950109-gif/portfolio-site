@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import sharp from 'sharp'
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,25 +14,59 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid file type' }, { status: 400 })
     }
 
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
     const buffer = Buffer.from(await file.arrayBuffer())
+    const baseName = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+    // 处理原图：压缩到 1920px 宽，质量 85%
+    const processedBuffer = await sharp(buffer)
+      .resize(1920, null, { withoutEnlargement: true })
+      .webp({ quality: 85 })
+      .toBuffer()
+
+    // 生成缩略图：800px 宽，质量 80%
+    const thumbnailBuffer = await sharp(buffer)
+      .resize(800, null, { withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toBuffer()
+
+    const originalFilename = `${baseName}.webp`
+    const thumbnailFilename = `${baseName}-thumb.webp`
 
     const supabase = createServerClient()
-    const { data, error } = await supabase.storage
+
+    // 上传原图
+    const { error: originalError } = await supabase.storage
       .from('works')
-      .upload(filename, buffer, {
-        contentType: file.type || `image/${ext}`,
+      .upload(originalFilename, processedBuffer, {
+        contentType: 'image/webp',
         upsert: false,
       })
 
-    if (error) {
-      console.error('Supabase upload error:', error)
-      return NextResponse.json({ error: 'Upload failed: ' + error.message }, { status: 500 })
+    if (originalError) {
+      console.error('Original upload error:', originalError)
+      return NextResponse.json({ error: 'Upload failed: ' + originalError.message }, { status: 500 })
     }
 
-    const { data: publicUrlData } = supabase.storage.from('works').getPublicUrl(filename)
+    // 上传缩略图
+    const { error: thumbError } = await supabase.storage
+      .from('works')
+      .upload(thumbnailFilename, thumbnailBuffer, {
+        contentType: 'image/webp',
+        upsert: false,
+      })
 
-    return NextResponse.json({ url: publicUrlData.publicUrl })
+    if (thumbError) {
+      console.error('Thumbnail upload error:', thumbError)
+      // 缩略图失败不影响原图，继续返回
+    }
+
+    const { data: originalUrlData } = supabase.storage.from('works').getPublicUrl(originalFilename)
+    const { data: thumbUrlData } = supabase.storage.from('works').getPublicUrl(thumbnailFilename)
+
+    return NextResponse.json({
+      url: originalUrlData.publicUrl,
+      thumbnailUrl: thumbUrlData.publicUrl,
+    })
   } catch (e) {
     console.error('Upload error:', e)
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
