@@ -26,4 +26,5 @@ export interface SiteSettings {
   tagline: string | null
   avatarUrl: string | null
   bio: string | null
+  siteTitle: string | null
 }

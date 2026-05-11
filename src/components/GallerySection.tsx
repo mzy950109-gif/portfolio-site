@@ -59,6 +59,7 @@ export default function GallerySection() {
   const [categories, setCategories] = useState<Category[]>([])
   const [activeSlug, setActiveSlug] = useState<string>('all')
   const [works, setWorks] = useState<Work[]>([])
+  const [siteTitle, setSiteTitle] = useState('设计作品集')
   const [lightbox, setLightbox] = useState<Work | null>(null)
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [page, setPage] = useState(1)
@@ -84,7 +85,14 @@ export default function GallerySection() {
     setWorks(w)
   }, [])
 
-  useEffect(() => { loadData() }, [loadData])
+  const loadSettings = useCallback(async () => {
+    try {
+      const s = await fetch('/api/settings').then(r => r.json())
+      if (s.siteTitle) setSiteTitle(s.siteTitle)
+    } catch {}
+  }, [])
+
+  useEffect(() => { loadData(); loadSettings() }, [loadData, loadSettings])
 
   const filteredWorks = activeSlug === 'all'
     ? works
@@ -392,7 +400,7 @@ export default function GallerySection() {
       {/* 顶部标题 */}
       <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <div className="px-4 pt-3 pb-2">
-          <h1 className="text-lg font-semibold text-gray-900">设计作品集</h1>
+          <h1 className="text-lg font-semibold text-gray-900">{siteTitle}</h1>
         </div>
         {/* 分类标签 */}
         <div className="px-4 pb-3 overflow-x-auto scrollbar-hide">

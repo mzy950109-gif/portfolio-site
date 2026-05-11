@@ -39,4 +39,5 @@ model SiteSettings {
   tagline   String?
   avatarUrl String?
   bio       String?
+  siteTitle String   @default("设计作品集")
 }

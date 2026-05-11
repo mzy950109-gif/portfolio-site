@@ -1,15 +1,77 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
-import type { Category, Work } from '@/lib/types'
+import { useState } from 'react'
+import type { Category, Work, SiteSettings } from '@/lib/types'
+
+// 密码登录界面
+function PasswordGate({ onSuccess }: { onSuccess: () => void }) {
+  const [pwd, setPwd] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleLogin = async () => {
+    if (!pwd.trim()) return
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwd }),
+      })
+      if (res.ok) {
+        onSuccess()
+      } else {
+        setError('密码错误')
+      }
+    } catch {
+      setError('网络错误')
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-white">
+      <div className="w-full max-w-xs">
+        <h1 className="text-xl font-semibold text-center mb-8">管理后台</h1>
+        <div className="flex flex-col gap-4">
+          <input
+            type="password"
+            value={pwd}
+            onChange={e => setPwd(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            placeholder="请输入管理员密码"
+            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900 transition"
+            autoFocus
+          />
+          {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+          <button
+            onClick={handleLogin}
+            disabled={loading || !pwd.trim()}
+            className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-medium disabled:opacity-50 transition"
+          >
+            {loading ? '验证中...' : '进入后台'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function AdminPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [works, setWorks] = useState<Work[]>([])
-  const [activeTab, setActiveTab] = useState<'works' | 'categories'>('works')
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null)
+  const [activeTab, setActiveTab] = useState<'works' | 'categories' | 'settings'>('works')
   const [uploading, setUploading] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [defaultCategoryId, setDefaultCategoryId] = useState('')
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [authenticated, setAuthenticated] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('admin_auth') === '1'
+    }
+    return false
+  })
+  const fileInputRef = { current: null as HTMLInputElement | null }
 
   const loadData = async () => {
     const [c, w] = await Promise.all([
@@ -23,7 +85,20 @@ export default function AdminPage() {
     }
   }
 
-  useEffect(() => { loadData() }, [])
+  const loadSettings = async () => {
+    const s = await fetch('/api/settings').then(r => r.json())
+    setSiteSettings(s)
+  }
+
+  // 未登录 → 显示密码框
+  if (!authenticated) {
+    return (
+      <PasswordGate onSuccess={() => {
+        sessionStorage.setItem('admin_auth', '1')
+        setAuthenticated(true)
+      }} />
+    )
+  }
 
   // 批量上传
   const handleBatchUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -128,6 +203,49 @@ export default function AdminPage() {
     loadData()
   }
 
+  // 设置
+  const [siteTitle, setSiteTitle] = useState('')
+  const [siteName, setSiteName] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState('')
+
+  const openSettings = async () => {
+    setActiveTab('settings')
+    await loadSettings()
+    if (siteSettings) {
+      setSiteTitle(siteSettings.siteTitle || '')
+      setSiteName(siteSettings.siteName || '')
+    }
+  }
+
+  const handleSaveSettings = async () => {
+    setSaving(true)
+    setSaveMsg('')
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siteTitle: siteTitle.trim(), siteName: siteName.trim() }),
+      })
+      if (res.ok) {
+        setSaveMsg('保存成功')
+        setTimeout(() => setSaveMsg(''), 2000)
+        loadSettings()
+      } else {
+        setSaveMsg('保存失败')
+      }
+    } catch {
+      setSaveMsg('保存失败')
+    }
+    setSaving(false)
+  }
+
+  // 加载初始数据
+  if (categories.length === 0 && works.length === 0) {
+    loadData()
+    loadSettings()
+  }
+
   return (
     <div className="min-h-screen bg-white pb-20">
       {/* 顶部 */}
@@ -138,7 +256,22 @@ export default function AdminPage() {
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
           </a>
-          <h1 className="text-lg font-semibold">管理后台</h1>
+          <h1 className="text-lg font-semibold flex-1">管理后台</h1>
+          <button
+            onClick={openSettings}
+            className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1"
+          >
+            设置
+          </button>
+          <button
+            onClick={() => {
+              sessionStorage.removeItem('admin_auth')
+              setAuthenticated(false)
+            }}
+            className="text-xs text-gray-400 hover:text-gray-500 px-2 py-1"
+          >
+            退出
+          </button>
         </div>
 
         {/* Tabs */}
@@ -159,6 +292,14 @@ export default function AdminPage() {
           >
             分类
           </button>
+          <button
+            onClick={() => { setActiveTab('settings'); loadSettings() }}
+            className={`flex-1 py-2 text-sm font-medium rounded-lg transition ${
+              activeTab === 'settings' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            设置
+          </button>
         </div>
       </div>
 
@@ -177,10 +318,10 @@ export default function AdminPage() {
               ))}
             </select>
 
-            <label className="btn-primary cursor-pointer text-sm py-2 px-4">
+            <label className="cursor-pointer text-sm py-2 px-4 bg-gray-900 text-white rounded-xl hover:bg-gray-700 transition disabled:opacity-50">
               {uploading ? '上传中...' : '+ 批量上传'}
               <input
-                ref={fileInputRef}
+                ref={el => { fileInputRef.current = el }}
                 type="file"
                 accept="image/*"
                 multiple
@@ -221,11 +362,10 @@ export default function AdminPage() {
             {works.map(work => (
               <div
                 key={work.id}
-                className={`relative rounded-xl overflow-hidden bg-gray-50 border-2 transition-all ${
+                className={`relative rounded-xl overflow-hidden bg-gray-50 border-2 transition-all group ${
                   selectedIds.has(work.id) ? 'border-gray-900' : 'border-transparent'
                 }`}
               >
-                {/* 选择框 */}
                 <div
                   className="absolute top-1.5 left-1.5 z-10 w-5 h-5 rounded bg-white/80 backdrop-blur flex items-center justify-center cursor-pointer"
                   onClick={(e) => { e.stopPropagation(); toggleSelect(work.id); }}
@@ -237,7 +377,6 @@ export default function AdminPage() {
                   )}
                 </div>
 
-                {/* 删除按钮 */}
                 <button
                   onClick={() => handleDeleteWork(work.id)}
                   className="absolute top-1.5 right-1.5 z-10 w-5 h-5 rounded bg-white/80 backdrop-blur flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
@@ -277,7 +416,7 @@ export default function AdminPage() {
               placeholder="输入分类名称"
               className="flex-1"
             />
-            <button onClick={handleAddCategory} className="btn-primary px-5">添加</button>
+            <button onClick={handleAddCategory} className="px-5 py-2 bg-gray-900 text-white rounded-xl text-sm">添加</button>
           </div>
 
           <div className="space-y-2">
@@ -303,6 +442,49 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Settings Tab */}
+      {activeTab === 'settings' && (
+        <div className="px-4 pt-4">
+          <div className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">首页标题</label>
+              <p className="text-xs text-gray-400 mb-2">显示在首页顶部的标题文字</p>
+              <input
+                value={siteTitle}
+                onChange={e => setSiteTitle(e.target.value)}
+                placeholder="设计作品集"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900 transition"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">站点名称</label>
+              <p className="text-xs text-gray-400 mb-2">浏览器标签页显示的名称</p>
+              <input
+                value={siteName}
+                onChange={e => setSiteName(e.target.value)}
+                placeholder="Portfolio"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900 transition"
+              />
+            </div>
+
+            <button
+              onClick={handleSaveSettings}
+              disabled={saving}
+              className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-medium disabled:opacity-50 transition"
+            >
+              {saving ? '保存中...' : '保存设置'}
+            </button>
+
+            {saveMsg && (
+              <p className={`text-xs text-center ${saveMsg === '保存成功' ? 'text-green-600' : 'text-red-500'}`}>
+                {saveMsg}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 底部导航 */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-40">
         <div className="flex items-center justify-around py-2 max-w-lg mx-auto">
@@ -322,7 +504,6 @@ export default function AdminPage() {
             <span className="text-[10px] text-gray-900 font-medium">管理</span>
           </div>
         </div>
-        <div className="h-safe-area-inset-bottom" />
       </nav>
     </div>
   )
