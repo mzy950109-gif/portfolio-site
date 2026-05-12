@@ -503,7 +503,6 @@ export default function GallerySection() {
               <img
                 src={filteredWorks[(lightboxIndex - 1 + filteredWorks.length) % filteredWorks.length].imageUrl}
                 alt=""
-                alt=""
                 className="w-full h-full object-contain"
               />
             </div>
