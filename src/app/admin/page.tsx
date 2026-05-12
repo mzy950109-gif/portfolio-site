@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Category, Work, SiteSettings } from '@/lib/types'
 
 // 密码登录界面
@@ -336,11 +336,10 @@ export default function AdminPage() {
   }
 
   // 加载初始数据
-  console.log('[ADMIN v2] dataLoaded=', dataLoaded)
-  if (!dataLoaded) {
+  useEffect(() => {
     loadData()
     loadSettings()
-  }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-screen bg-white pb-20">
