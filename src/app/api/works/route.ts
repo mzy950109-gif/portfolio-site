@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(req: NextRequest) {
   try {
+    if (!prisma) {
+      return NextResponse.json({ error: 'Prisma not initialized', detail: (globalThis as any).prismaError || 'unknown' }, { status: 500 })
+    }
     const works = await prisma.work.findMany({
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
       include: { category: true },
