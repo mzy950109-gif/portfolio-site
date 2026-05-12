@@ -2,6 +2,26 @@
 import React, { useState, useEffect } from 'react'
 import type { Category, Work, SiteSettings } from '@/lib/types'
 
+// 完全禁用 SSR，避免 hydration 不匹配
+// 使用动态 import + no-ssr 模式
+function AdminNoSSR() {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
+        <div style={{ color: '#999' }}>加载中...</div>
+      </div>
+    )
+  }
+
+  return <AdminPageInner />
+}
+
 // 全局错误捕获
 class AdminErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: React.ReactNode }) {
@@ -86,7 +106,7 @@ function PasswordGate({ onSuccess }: { onSuccess: () => void }) {
 export default function AdminPageWrapper() {
   return (
     <AdminErrorBoundary>
-      <AdminPageInner />
+      <AdminNoSSR />
     </AdminErrorBoundary>
   )
 }
