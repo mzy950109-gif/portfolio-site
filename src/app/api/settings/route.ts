@@ -4,7 +4,15 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   try {
     const settings = await prisma.siteSettings.findUnique({ where: { id: 'default' } })
-    return NextResponse.json(settings)
+    // Return default if not found to prevent frontend crash
+    return NextResponse.json(settings || {
+      id: 'default',
+      siteName: '作品集',
+      siteTitle: '作品集',
+      tagline: '',
+      avatarUrl: null,
+      bio: null
+    })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
