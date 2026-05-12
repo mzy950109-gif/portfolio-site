@@ -65,12 +65,16 @@ export default function AdminPage() {
   const [uploading, setUploading] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [defaultCategoryId, setDefaultCategoryId] = useState('')
-  const [authenticated, setAuthenticated] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('admin_auth') === '1'
+  const [authenticated, setAuthenticated] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
+
+  // 客户端检查登录状态（避免 SSR/客户端不一致导致 hydration 错误）
+  useEffect(() => {
+    if (sessionStorage.getItem('admin_auth') === '1') {
+      setAuthenticated(true)
     }
-    return false
-  })
+    setAuthChecked(true)
+  }, [])
   const [dataLoaded, setDataLoaded] = useState(false)
   const fileInputRef = { current: null as HTMLInputElement | null }
 
@@ -95,6 +99,11 @@ export default function AdminPage() {
   const loadSettings = async () => {
     const s = await fetch('/api/settings').then(r => r.json())
     setSiteSettings(s)
+  }
+
+  // 客户端还没检查完 → 避免 hydration 不匹配
+  if (!authChecked) {
+    return null
   }
 
   // 未登录 → 显示密码框
