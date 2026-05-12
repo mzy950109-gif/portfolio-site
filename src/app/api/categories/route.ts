@@ -2,14 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createId } from '@paralleldrive/cuid2'
 
-function generateSlug(name: string): string {
-  // Try to create a slug from ASCII chars
-  const asciiSlug = name
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-  // If slug is empty (e.g. Chinese name), generate a random one
-  return asciiSlug || `cat-${createId().slice(0, 8)}`
+function generateSlug(): string {
+  // Always use full cuid2 to guarantee uniqueness
+  return `cat-${createId()}`
 }
 
 export async function GET() {
@@ -30,10 +25,23 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { name, sortOrder = 0 } = body
     if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 })
-    const slug = generateSlug(name)
-    console.log('Creating category:', { name, slug, sortOrder })
-    const category = await prisma.category.create({ data: { name, slug, sortOrder } })
-    return NextResponse.json(category, { status: 201 })
+
+    // Generate unique slug with retry on collision
+    let slug = generateSlug()
+    for (let i = 0; i < 3; i++) {
+      try {
+        const category = await prisma.category.create({ data: { name, slug, sortOrder } })
+        return NextResponse.json(category, { status: 201 })
+      } catch (e: any) {
+        if (e.code === 'P2002' && i < 2) {
+          // Unique constraint conflict, retry with new slug
+          slug = generateSlug()
+          continue
+        }
+        throw e
+      }
+    }
+    return NextResponse.json({ error: 'Failed to create category' }, { status: 500 })
   } catch (error: any) {
     console.error('POST /api/categories error:', error)
     return NextResponse.json({ error: error.message, stack: error.stack }, { status: 500 })
@@ -45,10 +53,10 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json()
     const { id, name } = body
     if (!id || !name) return NextResponse.json({ error: 'ID and name required' }, { status: 400 })
-    const slug = generateSlug(name)
+    // On rename, keep existing slug to avoid conflicts
     const category = await prisma.category.update({
       where: { id },
-      data: { name, slug }
+      data: { name }
     })
     return NextResponse.json(category)
   } catch (error: any) {
