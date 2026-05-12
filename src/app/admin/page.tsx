@@ -71,17 +71,24 @@ export default function AdminPage() {
     }
     return false
   })
+  const [dataLoaded, setDataLoaded] = useState(false)
   const fileInputRef = { current: null as HTMLInputElement | null }
 
   const loadData = async () => {
-    const [c, w] = await Promise.all([
-      fetch('/api/categories').then(r => r.json()),
-      fetch('/api/works').then(r => r.json())
-    ])
-    setCategories(c)
-    setWorks(w)
-    if (c.length > 0 && !defaultCategoryId) {
-      setDefaultCategoryId(c[0].id)
+    try {
+      const [c, w] = await Promise.all([
+        fetch('/api/categories').then(r => r.json()),
+        fetch('/api/works').then(r => r.json())
+      ])
+      setCategories(c)
+      setWorks(w)
+      if (c.length > 0 && !defaultCategoryId) {
+        setDefaultCategoryId(c[0].id)
+      }
+    } catch (err) {
+      console.error('Failed to load data:', err)
+    } finally {
+      setDataLoaded(true)
     }
   }
 
@@ -329,7 +336,7 @@ export default function AdminPage() {
   }
 
   // 加载初始数据
-  if (categories.length === 0 && works.length === 0) {
+  if (!dataLoaded) {
     loadData()
     loadSettings()
   }
