@@ -3,6 +3,7 @@ import React from 'react'
 import dynamic from 'next/dynamic'
 
 // 完全禁用 SSR — 用 next/dynamic 跳过服务端渲染，彻底避免 hydration mismatch
+// Cache bust: v2-20250512-1724
 const AdminPageInner = dynamic(() => import('./AdminPageInner'), { ssr: false })
 
 // 全局错误捕获
