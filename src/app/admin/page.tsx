@@ -1,6 +1,32 @@
 'use client'
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import type { Category, Work, SiteSettings } from '@/lib/types'
+
+// 全局错误捕获
+class AdminErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 40, textAlign: 'center', color: '#e55' }}>
+          <h2>⚠️ Admin 页面出错</h2>
+          <pre style={{ color: '#666', marginTop: 16, whiteSpace: 'pre-wrap' }}>
+            {this.state.error?.message}
+            {'\n'}
+            {this.state.error?.stack}
+          </pre>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 // 密码登录界面
 function PasswordGate({ onSuccess }: { onSuccess: () => void }) {
@@ -57,7 +83,15 @@ function PasswordGate({ onSuccess }: { onSuccess: () => void }) {
   )
 }
 
-export default function AdminPage() {
+export default function AdminPageWrapper() {
+  return (
+    <AdminErrorBoundary>
+      <AdminPageInner />
+    </AdminErrorBoundary>
+  )
+}
+
+function AdminPageInner() {
   const [categories, setCategories] = useState<Category[]>([])
   const [works, setWorks] = useState<Work[]>([])
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null)
@@ -80,25 +114,33 @@ export default function AdminPage() {
 
   const loadData = async () => {
     try {
+      console.log('[admin] loadData start')
       const [c, w] = await Promise.all([
-        fetch('/api/categories').then(r => r.json()),
-        fetch('/api/works').then(r => r.json())
+        fetch('/api/categories').then(r => { console.log('[admin] categories status:', r.status); return r.json(); }),
+        fetch('/api/works').then(r => { console.log('[admin] works status:', r.status); return r.json(); })
       ])
+      console.log('[admin] categories:', c.length, 'works:', w.length)
       setCategories(c)
       setWorks(w)
       if (c.length > 0 && !defaultCategoryId) {
         setDefaultCategoryId(c[0].id)
       }
     } catch (err) {
-      console.error('Failed to load data:', err)
+      console.error('[admin] Failed to load data:', err)
     } finally {
       setDataLoaded(true)
     }
   }
 
   const loadSettings = async () => {
-    const s = await fetch('/api/settings').then(r => r.json())
-    setSiteSettings(s)
+    try {
+      console.log('[admin] loadSettings start')
+      const s = await fetch('/api/settings').then(r => { console.log('[admin] settings status:', r.status); return r.json(); })
+      console.log('[admin] settings:', s)
+      setSiteSettings(s)
+    } catch (err) {
+      console.error('[admin] Failed to load settings:', err)
+    }
   }
 
   // 客户端还没检查完 → 避免 hydration 不匹配
