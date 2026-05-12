@@ -336,6 +336,7 @@ export default function AdminPage() {
   }
 
   // 加载初始数据
+  console.log('[ADMIN v2] dataLoaded=', dataLoaded)
   if (!dataLoaded) {
     loadData()
     loadSettings()
