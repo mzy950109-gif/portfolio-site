@@ -1,8 +1,64 @@
-﻿'use client'
+'use client'
 import React, { useState, useEffect } from 'react'
 import type { Category, Work, SiteSettings } from '@/lib/types'
 
-function AdminPageInner() {
+function PasswordGate({ onSuccess }: { onSuccess: () => void }) {
+  const [pwd, setPwd] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleLogin = async () => {
+    if (!pwd.trim()) return
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwd }),
+      })
+      if (res.ok) {
+        onSuccess()
+      } else {
+        setError('密码错误')
+      }
+    } catch {
+      setError('网络错误')
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-white">
+      <div className="w-full max-w-xs">
+        <h1 className="text-xl font-semibold text-center mb-8">管理后台</h1>
+        <div className="flex flex-col gap-4">
+          <input
+            type="password"
+            value={pwd}
+            onChange={e => setPwd(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            placeholder="请输入管理员密码"
+            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900 transition"
+            autoFocus
+          />
+          {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+          <button
+            onClick={handleLogin}
+            disabled={loading || !pwd.trim()}
+            className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-medium disabled:opacity-50 transition"
+          >
+            {loading ? '验证中...' : '进入后台'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+
+export default function AdminPageInner() {
   const [categories, setCategories] = useState<Category[]>([])
   const [works, setWorks] = useState<Work[]>([])
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null)
@@ -13,7 +69,8 @@ function AdminPageInner() {
   const [authenticated, setAuthenticated] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
 
-  // 瀹㈡埛绔鏌ョ櫥褰曠姸鎬侊紙閬垮厤 SSR/瀹㈡埛绔笉涓€鑷村鑷?hydration 閿欒锛?  useEffect(() => {
+  // 客户端检查登录状态（避免 SSR/客户端不一致导致 hydration 错误）
+  useEffect(() => {
     if (sessionStorage.getItem('admin_auth') === '1') {
       setAuthenticated(true)
     }
@@ -53,11 +110,13 @@ function AdminPageInner() {
     }
   }
 
-  // 瀹㈡埛绔繕娌℃鏌ュ畬 鈫?閬垮厤 hydration 涓嶅尮閰?  if (!authChecked) {
+  // 客户端还没检查完 → 避免 hydration 不匹配
+  if (!authChecked) {
     return null
   }
 
-  // 鏈櫥褰?鈫?鏄剧ず瀵嗙爜妗?  if (!authenticated) {
+  // 未登录 → 显示密码框
+  if (!authenticated) {
     return (
       <PasswordGate onSuccess={() => {
         sessionStorage.setItem('admin_auth', '1')
@@ -66,12 +125,12 @@ function AdminPageInner() {
     )
   }
 
-  // 鎵归噺涓婁紶
+  // 批量上传
   const handleBatchUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
     if (!defaultCategoryId) {
-      alert('璇峰厛鍒涘缓鍒嗙被')
+      alert('请先创建分类')
       return
     }
 
@@ -110,10 +169,10 @@ function AdminPageInner() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  // 鎵归噺鍒犻櫎
+  // 批量删除
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return
-    if (!confirm(`纭畾鍒犻櫎 ${selectedIds.size} 涓綔鍝侊紵`)) return
+    if (!confirm(`确定删除 ${selectedIds.size} 个作品？`)) return
 
     const ids = Array.from(selectedIds).join(',')
     await fetch(`/api/works?ids=${ids}`, { method: 'DELETE' })
@@ -137,12 +196,12 @@ function AdminPageInner() {
   }
 
   const handleDeleteWork = async (id: string) => {
-    if (!confirm('鍒犻櫎姝や綔鍝侊紵')) return
+    if (!confirm('删除此作品？')) return
     await fetch(`/api/works?id=${id}`, { method: 'DELETE' })
     loadData()
   }
 
-  // 鍒嗙被
+  // 分类
   const [newCatName, setNewCatName] = useState('')
   const handleAddCategory = async () => {
     if (!newCatName.trim()) return
@@ -154,23 +213,24 @@ function AdminPageInner() {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        alert(`娣诲姞澶辫触: ${data.error || res.status}`)
+        alert(`添加失败: ${data.error || res.status}`)
         return
       }
       setNewCatName('')
       loadData()
     } catch (err) {
-      alert('缃戠粶閿欒锛岃绋嶅悗閲嶈瘯')
+      alert('网络错误，请稍后重试')
     }
   }
 
   const handleDeleteCategory = async (id: string) => {
-    if (!confirm('鍒犻櫎姝ゅ垎绫伙紵璇ュ垎绫讳笅鎵€鏈変綔鍝佷篃浼氳鍒犻櫎锛?)) return
+    if (!confirm('删除此分类？该分类下所有作品也会被删除！')) return
     await fetch(`/api/categories?id=${id}`, { method: 'DELETE' })
     loadData()
   }
 
-  // 鍒嗙被閲嶅懡鍚?  const [editingCatId, setEditingCatId] = useState<string | null>(null)
+  // 分类重命名
+  const [editingCatId, setEditingCatId] = useState<string | null>(null)
   const [editingCatName, setEditingCatName] = useState('')
   const [draggedCatId, setDraggedCatId] = useState<string | null>(null)
   const [dragOverCatId, setDragOverCatId] = useState<string | null>(null)
@@ -197,7 +257,7 @@ function AdminPageInner() {
     setEditingCatName('')
   }
 
-  // 鍒嗙被鎷栨嫿鎺掑簭
+  // 分类拖拽排序
   const handleCatDragStart = (catId: string) => {
     setDraggedCatId(catId)
   }
@@ -222,7 +282,7 @@ function AdminPageInner() {
       return
     }
 
-    // 閲嶆柊鎺掑簭
+    // 重新排序
     const draggedIndex = categories.findIndex(c => c.id === draggedCatId)
     const targetIndex = categories.findIndex(c => c.id === targetCatId)
     
@@ -235,10 +295,11 @@ function AdminPageInner() {
     const [draggedItem] = newCategories.splice(draggedIndex, 1)
     newCategories.splice(targetIndex, 0, draggedItem)
 
-    // 鏇存柊鏈湴鐘舵€?    setCategories(newCategories)
+    // 更新本地状态
+    setCategories(newCategories)
     setDraggedCatId(null)
 
-    // 淇濆瓨鍒版湇鍔″櫒
+    // 保存到服务器
     const updates = newCategories.map((cat, index) => ({
       id: cat.id,
       sortOrder: index,
@@ -255,7 +316,7 @@ function AdminPageInner() {
     }
   }
 
-  // 璁剧疆
+  // 设置
   const [siteTitle, setSiteTitle] = useState('')
   const [siteName, setSiteName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -280,19 +341,19 @@ function AdminPageInner() {
         body: JSON.stringify({ siteTitle: siteTitle.trim(), siteName: siteName.trim() }),
       })
       if (res.ok) {
-        setSaveMsg('淇濆瓨鎴愬姛')
+        setSaveMsg('保存成功')
         setTimeout(() => setSaveMsg(''), 2000)
         loadSettings()
       } else {
-        setSaveMsg('淇濆瓨澶辫触')
+        setSaveMsg('保存失败')
       }
     } catch {
-      setSaveMsg('淇濆瓨澶辫触')
+      setSaveMsg('保存失败')
     }
     setSaving(false)
   }
 
-  // 鍔犺浇鍒濆鏁版嵁
+  // 加载初始数据
   useEffect(() => {
     loadData()
     loadSettings()
@@ -300,7 +361,7 @@ function AdminPageInner() {
 
   return (
     <div className="min-h-screen bg-white pb-20">
-      {/* 椤堕儴 */}
+      {/* 顶部 */}
       <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <div className="px-4 py-3 flex items-center gap-3">
           <a href="/" className="text-gray-400 hover:text-gray-600">
@@ -308,12 +369,12 @@ function AdminPageInner() {
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
           </a>
-          <h1 className="text-lg font-semibold flex-1">绠＄悊鍚庡彴</h1>
+          <h1 className="text-lg font-semibold flex-1">管理后台</h1>
           <button
             onClick={openSettings}
             className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1"
           >
-            璁剧疆
+            设置
           </button>
           <button
             onClick={() => {
@@ -322,7 +383,8 @@ function AdminPageInner() {
             }}
             className="text-xs text-gray-400 hover:text-gray-500 px-2 py-1"
           >
-            閫€鍑?          </button>
+            退出
+          </button>
         </div>
 
         {/* Tabs */}
@@ -333,7 +395,7 @@ function AdminPageInner() {
               activeTab === 'works' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'
             }`}
           >
-            浣滃搧
+            作品
           </button>
           <button
             onClick={() => { setActiveTab('categories'); setSelectedIds(new Set()) }}
@@ -341,7 +403,7 @@ function AdminPageInner() {
               activeTab === 'categories' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'
             }`}
           >
-            鍒嗙被
+            分类
           </button>
           <button
             onClick={() => { setActiveTab('settings'); loadSettings() }}
@@ -349,7 +411,7 @@ function AdminPageInner() {
               activeTab === 'settings' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'
             }`}
           >
-            璁剧疆
+            设置
           </button>
         </div>
       </div>
@@ -357,7 +419,7 @@ function AdminPageInner() {
       {/* Works Tab */}
       {activeTab === 'works' && (
         <div className="px-4 pt-4">
-          {/* 鎵归噺鎿嶄綔鏍?*/}
+          {/* 批量操作栏 */}
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <select
               value={defaultCategoryId}
@@ -370,7 +432,7 @@ function AdminPageInner() {
             </select>
 
             <label className="cursor-pointer text-sm py-2 px-4 bg-gray-900 text-white rounded-xl hover:bg-gray-700 transition disabled:opacity-50">
-              {uploading ? '涓婁紶涓?..' : '+ 鎵归噺涓婁紶'}
+              {uploading ? '上传中...' : '+ 批量上传'}
               <input
                 ref={el => { fileInputRef.current = el }}
                 type="file"
@@ -387,12 +449,12 @@ function AdminPageInner() {
                 onClick={handleBatchDelete}
                 className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-full hover:bg-red-100 transition"
               >
-                鍒犻櫎 ({selectedIds.size})
+                删除 ({selectedIds.size})
               </button>
             )}
           </div>
 
-          {/* 鍏ㄩ€?*/}
+          {/* 全选 */}
           {works.length > 0 && (
             <div className="flex items-center gap-3 mb-3">
               <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
@@ -402,12 +464,13 @@ function AdminPageInner() {
                   onChange={toggleSelectAll}
                   className="w-4 h-4 rounded border-gray-300"
                 />
-                鍏ㄩ€?              </label>
-              <span className="text-xs text-gray-400">{works.length} 涓綔鍝?/span>
+                全选
+              </label>
+              <span className="text-xs text-gray-400">{works.length} 个作品</span>
             </div>
           )}
 
-          {/* 浣滃搧缃戞牸 */}
+          {/* 作品网格 */}
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {works.map(work => (
               <div
@@ -448,8 +511,8 @@ function AdminPageInner() {
 
           {works.length === 0 && (
             <div className="text-center py-16 text-gray-400">
-              <p className="text-sm">鏆傛棤浣滃搧</p>
-              <p className="text-xs mt-1">鐐瑰嚮涓婃柟鎸夐挳涓婁紶</p>
+              <p className="text-sm">暂无作品</p>
+              <p className="text-xs mt-1">点击上方按钮上传</p>
             </div>
           )}
         </div>
@@ -463,10 +526,10 @@ function AdminPageInner() {
               value={newCatName}
               onChange={e => setNewCatName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
-              placeholder="杈撳叆鍒嗙被鍚嶇О"
+              placeholder="输入分类名称"
               className="flex-1"
             />
-            <button onClick={handleAddCategory} className="px-5 py-2 bg-gray-900 text-white rounded-xl text-sm">娣诲姞</button>
+            <button onClick={handleAddCategory} className="px-5 py-2 bg-gray-900 text-white rounded-xl text-sm">添加</button>
           </div>
 
           <div className="space-y-2">
@@ -494,12 +557,12 @@ function AdminPageInner() {
                       autoFocus
                       className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-gray-900"
                     />
-                    <button onClick={saveEditCat} className="text-xs text-green-600 px-2 py-1.5 rounded-full hover:bg-green-50 transition">淇濆瓨</button>
-                    <button onClick={cancelEditCat} className="text-xs text-gray-400 px-2 py-1.5 rounded-full hover:bg-gray-100 transition">鍙栨秷</button>
+                    <button onClick={saveEditCat} className="text-xs text-green-600 px-2 py-1.5 rounded-full hover:bg-green-50 transition">保存</button>
+                    <button onClick={cancelEditCat} className="text-xs text-gray-400 px-2 py-1.5 rounded-full hover:bg-gray-100 transition">取消</button>
                   </>
                 ) : (
                   <>
-                    {/* 鎷栨嫿鎵嬫焺 */}
+                    {/* 拖拽手柄 */}
                     <div className="text-gray-300 cursor-grab active:cursor-grabbing">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <circle cx="9" cy="6" r="1.5" fill="currentColor"/>
@@ -515,17 +578,17 @@ function AdminPageInner() {
                         className="font-medium text-sm truncate cursor-pointer hover:text-gray-600"
                         onClick={() => startEditCat(cat)}
                       >{cat.name}</h3>
-                      <p className="text-xs text-gray-400">{cat.works?.length || 0} 涓綔鍝?/p>
+                      <p className="text-xs text-gray-400">{cat.works?.length || 0} 个作品</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => startEditCat(cat)}
                         className="text-xs text-gray-400 px-2 py-1.5 rounded-full hover:bg-gray-100 transition"
-                      >閲嶅懡鍚?/button>
+                      >重命名</button>
                       <button
                         onClick={() => handleDeleteCategory(cat.id)}
                         className="text-xs text-red-500 px-2 py-1.5 rounded-full hover:bg-red-50 transition"
-                      >鍒犻櫎</button>
+                      >删除</button>
                     </div>
                   </>
                 )}
@@ -534,7 +597,7 @@ function AdminPageInner() {
           </div>
 
           {categories.length === 0 && (
-            <p className="text-center text-gray-400 py-12 text-sm">鏆傛棤鍒嗙被</p>
+            <p className="text-center text-gray-400 py-12 text-sm">暂无分类</p>
           )}
         </div>
       )}
@@ -544,19 +607,19 @@ function AdminPageInner() {
         <div className="px-4 pt-4">
           <div className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">棣栭〉鏍囬</label>
-              <p className="text-xs text-gray-400 mb-2">鏄剧ず鍦ㄩ椤甸《閮ㄧ殑鏍囬鏂囧瓧</p>
+              <label className="block text-sm font-medium text-gray-700 mb-2">首页标题</label>
+              <p className="text-xs text-gray-400 mb-2">显示在首页顶部的标题文字</p>
               <input
                 value={siteTitle}
                 onChange={e => setSiteTitle(e.target.value)}
-                placeholder="璁捐浣滃搧闆?
+                placeholder="设计作品集"
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-900 transition"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">绔欑偣鍚嶇О</label>
-              <p className="text-xs text-gray-400 mb-2">娴忚鍣ㄦ爣绛鹃〉鏄剧ず鐨勫悕绉?/p>
+              <label className="block text-sm font-medium text-gray-700 mb-2">站点名称</label>
+              <p className="text-xs text-gray-400 mb-2">浏览器标签页显示的名称</p>
               <input
                 value={siteName}
                 onChange={e => setSiteName(e.target.value)}
@@ -570,11 +633,11 @@ function AdminPageInner() {
               disabled={saving}
               className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-medium disabled:opacity-50 transition"
             >
-              {saving ? '淇濆瓨涓?..' : '淇濆瓨璁剧疆'}
+              {saving ? '保存中...' : '保存设置'}
             </button>
 
             {saveMsg && (
-              <p className={`text-xs text-center ${saveMsg === '淇濆瓨鎴愬姛' ? 'text-green-600' : 'text-red-500'}`}>
+              <p className={`text-xs text-center ${saveMsg === '保存成功' ? 'text-green-600' : 'text-red-500'}`}>
                 {saveMsg}
               </p>
             )}
@@ -582,7 +645,7 @@ function AdminPageInner() {
         </div>
       )}
 
-      {/* 搴曢儴瀵艰埅 */}
+      {/* 底部导航 */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-40">
         <div className="flex items-center justify-around py-2 max-w-lg mx-auto">
           <a href="/" className="flex flex-col items-center gap-0.5 px-4 py-1">
@@ -590,7 +653,7 @@ function AdminPageInner() {
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
               <polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
-            <span className="text-[10px] text-gray-400">棣栭〉</span>
+            <span className="text-[10px] text-gray-400">首页</span>
           </a>
           <div className="flex flex-col items-center gap-0.5 px-4 py-1">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-900">
@@ -598,10 +661,11 @@ function AdminPageInner() {
               <line x1="12" y1="8" x2="12" y2="16"/>
               <line x1="8" y1="12" x2="16" y2="12"/>
             </svg>
-            <span className="text-[10px] text-gray-900 font-medium">绠＄悊</span>
+            <span className="text-[10px] text-gray-900 font-medium">管理</span>
           </div>
         </div>
       </nav>
     </div>
   )
 }
+
