@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(req: NextRequest) {
-  const works = await prisma.work.findMany({
-    orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
-    include: { category: true },
-  })
-  return NextResponse.json(works)
+  try {
+    const works = await prisma.work.findMany({
+      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
+      include: { category: true },
+    })
+    return NextResponse.json(works)
+  } catch (error: any) {
+    console.error('GET /api/works error:', error?.message || error)
+    return NextResponse.json({ error: error?.message || String(error), stack: error?.stack?.slice(0, 500) || '' }, { status: 500 })
+  }
 }
 
 export async function POST(req: NextRequest) {
