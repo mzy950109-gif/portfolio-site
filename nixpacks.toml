@@ -1,0 +1,9 @@
+# Nixpacks config for Railway deployment
+# Fixes Sharp (libatomic1) build failure
+
+[phases.setup]
+nixPkgs = ["python3", "gcc", "libatomic1"]
+
+[variables]
+NPM_CONFIG_PRODUCTION = "false"
+NODE_ENV = "production"
