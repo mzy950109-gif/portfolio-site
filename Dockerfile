@@ -1,15 +1,15 @@
-FROM node:20-alpine
-
-# Minimal dependencies - @napi-rs/image uses prebuilt binaries
-RUN apk add --no-cache libc6-compat
+FROM node:20-slim
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY package.json package-lock.json* ./
 RUN npm ci
 
+COPY prisma ./prisma/
+RUN npx prisma generate
+
 COPY . .
-RUN npx prisma generate && npm run build
+RUN npm run build
 
 EXPOSE 3000
 CMD ["npm", "start"]
