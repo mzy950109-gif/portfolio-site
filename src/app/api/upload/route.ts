@@ -2,11 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+// Helper: get Jimp instance safely (handles ESM/CJS interop issues)
+async function getJimp() {
+  // Try ESM import first, fallback to CJS require
+  try {
+    const mod = await import('jimp')
+    const Jimp = mod.default || mod
+    if (typeof Jimp.read === 'function') return Jimp
+    // Some bundlers wrap differently
+    // @ts-ignore - ESM interop
+    if (typeof (Jimp as any).default?.read === 'function') return (Jimp as any).default
+  } catch {}
+  // CJS fallback
+  try {
+    // @ts-ignore
+    const Jimp = require('jimp')
+    if (typeof Jimp.read === 'function') return Jimp
+  } catch {}
+  throw new Error('Jimp module could not be loaded')
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { createServerClient } = await import('@/lib/supabase')
-    // @ts-ignore - jimp types not recognized
-    const Jimp = require('jimp')
+    const Jimp = await getJimp()
+    
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 })
