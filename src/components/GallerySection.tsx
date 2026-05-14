@@ -77,12 +77,17 @@ export default function GallerySection() {
   const PER_PAGE = 20
 
   const loadData = useCallback(async () => {
-    const [c, w] = await Promise.all([
-      fetch('/api/categories').then(r => r.json()),
-      fetch('/api/works').then(r => r.json())
-    ])
-    setCategories(c)
-    setWorks(w)
+    try {
+      const [cRes, wRes] = await Promise.all([
+        fetch('/api/categories'),
+        fetch('/api/works')
+      ])
+      const [c, w] = await Promise.all([cRes.json(), wRes.json()])
+      if (Array.isArray(c)) setCategories(c)
+      if (Array.isArray(w)) setWorks(w)
+    } catch (err) {
+      console.error('Failed to load data:', err)
+    }
   }, [])
 
   const loadSettings = useCallback(async () => {
