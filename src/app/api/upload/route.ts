@@ -21,16 +21,26 @@ export async function POST(req: NextRequest) {
     const baseName = `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
     // Process original: resize to 1920px, quality 85
-    const img = await Jimp.read(buffer)
-    img.resize(1920, Jimp.AUTO)
-    img.quality(85)
-    const processedBuffer = await img.getBufferAsync(Jimp.MIME_PNG)
+    let processedBuffer: Buffer
+    try {
+      const img = await Jimp.read(buffer)
+      img.resize(1920, Jimp.AUTO)
+      img.quality(85)
+      processedBuffer = await img.getBufferAsync(Jimp.MIME_PNG)
+    } catch (e: any) {
+      return NextResponse.json({ error: 'Image processing failed: ' + (e?.message || e), step: 'jimp-original' }, { status: 500 })
+    }
 
     // Generate thumbnail: 800px, quality 80
-    const thumbImg = await Jimp.read(buffer)
-    thumbImg.resize(800, Jimp.AUTO)
-    thumbImg.quality(80)
-    const thumbnailBuffer = await thumbImg.getBufferAsync(Jimp.MIME_PNG)
+    let thumbnailBuffer: Buffer
+    try {
+      const thumbImg = await Jimp.read(buffer)
+      thumbImg.resize(800, Jimp.AUTO)
+      thumbImg.quality(80)
+      thumbnailBuffer = await thumbImg.getBufferAsync(Jimp.MIME_PNG)
+    } catch (e: any) {
+      return NextResponse.json({ error: 'Thumbnail processing failed: ' + (e?.message || e), step: 'jimp-thumbnail' }, { status: 500 })
+    }
 
     const originalFilename = `${baseName}.png`
     const thumbnailFilename = `${baseName}-thumb.png`
@@ -47,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     if (originalError) {
       console.error('Original upload error:', originalError)
-      return NextResponse.json({ error: 'Upload failed: ' + originalError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Supabase upload failed: ' + originalError.message, step: 'supabase-upload' }, { status: 500 })
     }
 
     // Upload thumbnail
@@ -70,8 +80,10 @@ export async function POST(req: NextRequest) {
       url: originalUrlData.publicUrl,
       thumbnailUrl: thumbUrlData.publicUrl,
     })
-  } catch (e) {
-    console.error('Upload error:', e)
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
+  } catch (e: any) {
+    const errMsg = e?.message || String(e)
+    const errStack = e?.stack?.slice(0, 1000) || ''
+    console.error('Upload error:', errMsg, errStack)
+    return NextResponse.json({ error: 'Upload failed: ' + errMsg, step: 'unknown', stack: errStack }, { status: 500 })
   }
 }
