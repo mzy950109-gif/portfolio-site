@@ -119,6 +119,8 @@ export default function AdminPage() {
     setUploading(true)
     const items: { imageUrl: string; thumbnailUrl: string; categoryId: string; title?: string }[] = []
 
+    let uploadErrors: string[] = []
+
     for (const file of files) {
       const formData = new FormData()
       formData.append('file', file)
@@ -132,19 +134,34 @@ export default function AdminPage() {
             categoryId: defaultCategoryId,
             title: file.name.replace(/\.[^/.]+$/, '').slice(0, 50)
           })
+        } else {
+          uploadErrors.push(`${file.name}: ${data.error || '未知错误'}`)
         }
-      } catch (err) {
-        console.error('Upload failed:', file.name, err)
+      } catch (err: any) {
+        uploadErrors.push(`${file.name}: ${err?.message || '网络错误'}`)
       }
     }
 
+    if (uploadErrors.length > 0) {
+      alert(`上传失败:\n${uploadErrors.join('\n')}`)
+    }
+
     if (items.length > 0) {
-      await fetch('/api/works', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batch: true, items })
-      })
-      loadData()
+      try {
+        const saveRes = await fetch('/api/works', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ batch: true, items })
+        })
+        if (!saveRes.ok) {
+          const errData = await saveRes.json().catch(() => ({}))
+          alert(`保存失败: ${errData.error || saveRes.status}`)
+        } else {
+          loadData()
+        }
+      } catch (err: any) {
+        alert(`保存失败: ${err?.message || '网络错误'}`)
+      }
     }
 
     setUploading(false)
